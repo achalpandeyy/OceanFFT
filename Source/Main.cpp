@@ -1,57 +1,10 @@
 #include <Application.h>
+#include <Shader.h>
 #include <Mesh.h>
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <iostream>
 #include <vector>
-
-namespace Ogle
-{
-    struct VertexBuffer
-    {
-        VertexBuffer(void* vertices, size_t vertices_size)
-        {
-            glGenBuffers(1, &id);
-            glBindBuffer(GL_ARRAY_BUFFER, id);
-            glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_STATIC_DRAW);
-        }
-
-        ~VertexBuffer()
-        {
-            glDeleteBuffers(1, &id);
-        }
-
-        GLuint id;
-    };
-
-    struct IndexBuffer
-    {
-        IndexBuffer(void* indices, size_t indices_size)
-        {
-            glGenBuffers(1, &id);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, id);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_STATIC_DRAW);
-        }
-
-        ~IndexBuffer()
-        {
-            glDeleteBuffers(1, &id);
-        }
-
-        GLuint id;
-    };
-
-    struct VertexAttribs
-    {
-
-    };
-
-    struct VertexArray
-    {
-
-        GLuint id;
-    };
-}
 
 struct OceanFFT : public Ogle::Application
 {
@@ -107,18 +60,31 @@ struct OceanFFT : public Ogle::Application
         grid_vbo = std::make_unique<Ogle::VertexBuffer>(vertices.data(), vertices.size() * sizeof(GridVertex));
         grid_ibo = std::make_unique<Ogle::IndexBuffer>(indices.data(), indices.size() * sizeof(unsigned int));
 
-        // Ogle::VertexAttribs attribs = {};
-        // grid_vao = std::make_unique<Ogle::VertexArray>(grid_vbo.get(), grid_ibo.get(), sizeof(GridVertex), 2, attribs);
+        Ogle::VertexAttribs attribs[] = { {3, 0}, {2, offsetof(GridVertex, tex_coords)} };
+        grid_vao = std::make_unique<Ogle::VertexArray>(grid_vbo.get(), grid_ibo.get(), attribs, 2, (GLsizei)sizeof(GridVertex));
+
+        // Create Shader
+        grid_shader = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/DefaultShader.vert",
+            "C:/Projects/OceanFFT/Source/Shaders/DefaultShader.frag");
     }
 
     virtual void Update() override
     {
+        // glClearColor(0.2f, 0.3f, 0.8f, 1.f);
+        glClear(GL_COLOR_BUFFER_BIT);
 
+        grid_shader->Bind();
+
+        grid_vao->Bind();
+        grid_ibo->Bind();
+        glDrawElements(GL_TRIANGLES, 1024 * 1024 * 2 * 3, GL_UNSIGNED_INT, 0);
     }
+
 private:
     std::unique_ptr<Ogle::VertexBuffer> grid_vbo = nullptr;
     std::unique_ptr<Ogle::IndexBuffer> grid_ibo = nullptr;
     std::unique_ptr<Ogle::VertexArray> grid_vao = nullptr;
+    std::unique_ptr<Ogle::Shader> grid_shader = nullptr;
 
     // Todo: Probably you don't have to store texture coordinates, they could be
     // computed on the fly by the vertex shader
