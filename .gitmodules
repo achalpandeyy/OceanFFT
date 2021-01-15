@@ -1,0 +1,3 @@
+[submodule "External/Ogle"]
+	path = External/Ogle
+	url = https://github.com/achalpandeyy/Ogle
