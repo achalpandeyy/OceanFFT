@@ -1,8 +1,11 @@
 #include <Application.h>
+#include <Camera.h>
 #include <Shader.h>
 #include <Mesh.h>
 #include <glad/glad.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <vector>
 
@@ -10,11 +13,11 @@ struct OceanFFT : public Ogle::Application
 {
     OceanFFT()
     {
-        settings.enable_cursor = false;
-        settings.enable_debug_callback = true;
         settings.width = 1280;
         settings.height = 720;
         settings.window_title = "OceanFFT | Ogle";
+        settings.enable_debug_callback = true;
+        settings.enable_cursor = false;
     }
 
     virtual void Initialize() override
@@ -66,18 +69,35 @@ struct OceanFFT : public Ogle::Application
         // Create Shader
         grid_shader = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/DefaultShader.vert",
             "C:/Projects/OceanFFT/Source/Shaders/DefaultShader.frag");
+
+        camera = std::make_unique<Ogle::Camera>(glm::vec3(0.f, 500.f, 500.f));
     }
 
     virtual void Update() override
     {
-        // glClearColor(0.2f, 0.3f, 0.8f, 1.f);
         glClear(GL_COLOR_BUFFER_BIT);
 
         grid_shader->Bind();
+        grid_shader->SetMat4("u_PV", glm::value_ptr(camera->GetProjViewMatrix((float)settings.width / settings.height)));
 
         grid_vao->Bind();
         grid_ibo->Bind();
         glDrawElements(GL_TRIANGLES, 1024 * 1024 * 2 * 3, GL_UNSIGNED_INT, 0);
+    }
+
+    void OnKeyPress(int key_code) override
+    {
+        camera->ProcessKeyboard(key_code, delta_time);
+    }
+
+    void OnMouseMove(float x_offset, float y_offset) override
+    {
+        camera->ProcessMouseMove(x_offset, y_offset);
+    }
+
+    void OnMouseScroll(float vertical_offset) override
+    {
+        camera->ProcessMouseScroll(vertical_offset);
     }
 
 private:
@@ -85,6 +105,7 @@ private:
     std::unique_ptr<Ogle::IndexBuffer> grid_ibo = nullptr;
     std::unique_ptr<Ogle::VertexArray> grid_vao = nullptr;
     std::unique_ptr<Ogle::Shader> grid_shader = nullptr;
+    std::unique_ptr<Ogle::Camera> camera = nullptr;
 
     // Todo: Probably you don't have to store texture coordinates, they could be
     // computed on the fly by the vertex shader
