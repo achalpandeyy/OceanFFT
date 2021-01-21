@@ -1,10 +1,9 @@
 #version 460 core
 
 #define PI_32F 3.14159265358979f
+#define g 9.81f
 
 layout (local_size_x = 32, local_size_y = 32) in;
-
-const float g = 9.81f;
 
 uniform sampler2D s_Noise0;
 uniform sampler2D s_Noise1;
@@ -34,6 +33,7 @@ vec4 GaussianRandom()
 	return vec4(v0 * cos(u0), v0 * sin(u0), v1 * cos(u1), v1 * sin(u1));
 }
 
+// Section 4.3, Eq 41
 float SuppressionFactor(float k_magnitude_sq)
 {
 	float u_SuppressLength = 0.1f;
@@ -61,7 +61,7 @@ void main()
 	vec2 k = vec2((2.f * PI_32F * pos.x) / u_L, (2.f * PI_32F * pos.y) / u_L);
 
 	float k_magnitude = length(k);
-	if (k_magnitude < 0.0001f)	k_magnitude = 0.00001f;
+	if (k_magnitude < 0.00001f)	k_magnitude = 0.00001f;
 
 	// Largest possible waves arising from a continuous wind of speed wind_speed, Section 4.3, after Eq 40
 	float L_phillips = (u_WindSpeed * u_WindSpeed) / g;

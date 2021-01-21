@@ -11,7 +11,7 @@
 #include <vector>
 
 #define DISPLACEMENT_MAP_DIM 256
-#define COMPUTE_WORK_GROUP_COUNT 32
+#define COMPUTE_WORK_GROUP_DIM 32
 
 struct OceanFFT final : public Ogle::Application
 {
@@ -95,8 +95,8 @@ struct OceanFFT final : public Ogle::Application
         quad_shader = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/DebugQuadViz.vert",
             "C:/Projects/OceanFFT/Source/Shaders/DebugQuadViz.frag");
 
-        // Generate tilde_h0_k
-        tilde_h0_k_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/TildeH0K.comp");
+        // Generate tilde_h0_k and tilde_h0_minus_k
+        tilde_h0_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/TildeH0.comp");
 
         noise0 = std::unique_ptr<Ogle::Texture2D>(Ogle::Texture2D::CreateFromFile("C:/Projects/OceanFFT/Resources/LDR_LLL1_0.png"));
         noise1 = std::unique_ptr<Ogle::Texture2D>(Ogle::Texture2D::CreateFromFile("C:/Projects/OceanFFT/Resources/LDR_LLL1_1.png"));
@@ -106,22 +106,22 @@ struct OceanFFT final : public Ogle::Application
         tilde_h0_k = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RG32F, GL_RG, GL_FLOAT);
         tilde_h0_minus_k = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RG32F, GL_RG, GL_FLOAT);
 
-        tilde_h0_k_program->Bind();
-
-        tilde_h0_k_program->SetInt("s_Noise0", 0);
-        noise0->Bind(0);
-
-        tilde_h0_k_program->SetInt("s_Noise1", 1);
-        noise1->Bind(1);
-
-        tilde_h0_k_program->SetInt("s_Noise2", 2);
-        noise2->Bind(2);
-
-        tilde_h0_k_program->SetInt("s_Noise3", 3);
-        noise3->Bind(3);
+        tilde_h0_program->Bind();
 
         tilde_h0_k->BindImage(0, GL_WRITE_ONLY, GL_RG32F);
         tilde_h0_minus_k->BindImage(1, GL_WRITE_ONLY, GL_RG32F);
+
+        tilde_h0_program->SetInt("s_Noise0", 2);
+        noise0->Bind(2);
+
+        tilde_h0_program->SetInt("s_Noise1", 3);
+        noise1->Bind(3);
+
+        tilde_h0_program->SetInt("s_Noise2", 4);
+        noise2->Bind(4);
+
+        tilde_h0_program->SetInt("s_Noise3", 5);
+        noise3->Bind(5);
         
         glClearColor(0.f, 0.f, 0.f, 1.f);
 
@@ -129,6 +129,22 @@ struct OceanFFT final : public Ogle::Application
         glDispatchCompute(work_group_count, work_group_count, 1);
 
         glFinish();
+
+        tilde_h_k_t_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/TildeHKT.comp");
+
+        // Todo: This all shouldn't be in a loop, right?
+        tilde_h_k_t_program->Bind();
+        tilde_h0_k->BindImage(0, GL_READ_ONLY, GL_RG32F);
+        tilde_h0_minus_k->BindImage(1, GL_READ_ONLY, GL_RG32F);
+        
+        tilde_h_k_t_dx = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT);
+        tilde_h_k_t_dx->BindImage(2, GL_WRITE_ONLY, GL_RGBA32F);
+        
+        tilde_h_k_t_dy = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT);
+        tilde_h_k_t_dy->BindImage(3, GL_WRITE_ONLY, GL_RGBA32F);
+        
+        tilde_h_k_t_dz = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT);
+        tilde_h_k_t_dz->BindImage(4, GL_WRITE_ONLY, GL_RGBA32F);
     }
 
     void Update() override
@@ -142,11 +158,18 @@ struct OceanFFT final : public Ogle::Application
         // grid_ibo->Bind();
         // glDrawElements(GL_TRIANGLES, 1024 * 1024 * 2 * 3, GL_UNSIGNED_INT, 0);
 
+        tilde_h_k_t_program->Bind();
+        tilde_h_k_t_program->SetFloat("u_Time", (float)glfwGetTime());
+        
+        unsigned int work_group_count = DISPLACEMENT_MAP_DIM / COMPUTE_WORK_GROUP_DIM;
+        glDispatchCompute(work_group_count, work_group_count, 1);
+        
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
         quad_shader->Bind();
 
         quad_shader->SetInt("s_Texture", 0);
-        // tilde_h0_k->Bind(0);
-        tilde_h0_minus_k->Bind(0);
+        tilde_h_k_t_dy->Bind(0);
 
         quad_ibo->Bind();
         quad_vao->Bind();
@@ -180,9 +203,15 @@ private:
     std::unique_ptr<Ogle::Texture2D> noise1 = nullptr;
     std::unique_ptr<Ogle::Texture2D> noise2 = nullptr;
     std::unique_ptr<Ogle::Texture2D> noise3 = nullptr;
+
     std::unique_ptr<Ogle::Texture2D> tilde_h0_k = nullptr;
     std::unique_ptr<Ogle::Texture2D> tilde_h0_minus_k = nullptr;
-    std::unique_ptr<Ogle::Shader> tilde_h0_k_program = nullptr;
+    std::unique_ptr<Ogle::Texture2D> tilde_h_k_t_dx = nullptr;
+    std::unique_ptr<Ogle::Texture2D> tilde_h_k_t_dy = nullptr;
+    std::unique_ptr<Ogle::Texture2D> tilde_h_k_t_dz = nullptr;
+
+    std::unique_ptr<Ogle::Shader> tilde_h0_program = nullptr;
+    std::unique_ptr<Ogle::Shader> tilde_h_k_t_program = nullptr;
 
     std::unique_ptr<Ogle::VertexBuffer> quad_vbo = nullptr;
     std::unique_ptr<Ogle::IndexBuffer> quad_ibo = nullptr;
