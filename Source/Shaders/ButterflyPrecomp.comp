@@ -4,7 +4,7 @@
 
 layout (local_size_x = 8, local_size_y = 32) in;
 
-layout (binding = 6, rgba32f) writeonly uniform image2D u_TwiddleFactors;
+layout (binding = 0, rgba32f) writeonly uniform image2D u_ButterflyPrecomp;
 
 layout (std430, binding = 0) buffer indices
 {
@@ -61,5 +61,5 @@ void main()
 		}
 	}
 
-	imageStore(u_TwiddleFactors, pixel_pos, result);
+	imageStore(u_ButterflyPrecomp, pixel_pos, result);
 }

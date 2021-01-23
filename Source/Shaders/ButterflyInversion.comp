@@ -1,0 +1,31 @@
+#version 460 core
+
+layout (local_size_x = 32, local_size_y = 32) in;
+
+layout (binding = 0, r32f) writeonly uniform image2D u_Displacement;
+layout (binding = 1, rgba32f) readonly uniform image2D u_PingPong0;
+layout (binding = 2, rgba32f) readonly uniform image2D u_PingPong1;
+
+uniform int u_PingPongIndex;
+
+void main()
+{
+	int u_N = 256;
+
+	ivec2 pixel_pos = ivec2(gl_GlobalInvocationID.xy);
+
+	float perms[2] = { 1.f, -1.f };
+	int index = int(mod(pixel_pos.x + pixel_pos.y, 2));
+	float perm = perms[index];
+
+	if (u_PingPongIndex == 0)
+    {
+        float h = imageLoad(u_PingPong0, pixel_pos).r;
+        imageStore(u_Displacement, pixel_pos, vec4(perm * (h / float(u_N * u_N)), 0.f, 0.f, 1.f));
+    }
+    else if (u_PingPongIndex == 1)
+    {
+        float h = imageLoad(u_PingPong1, pixel_pos).r;
+        imageStore(u_Displacement, pixel_pos, vec4(perm * (h / float(u_N * u_N)), 0.f, 0.f, 1.f));
+    }
+}

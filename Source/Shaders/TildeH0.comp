@@ -66,10 +66,9 @@ void main()
 	// Largest possible waves arising from a continuous wind of speed wind_speed, Section 4.3, after Eq 40
 	float L_phillips = (u_WindSpeed * u_WindSpeed) / g;
 
-	// Todo: Do you need to clamp values of h0_k here?
 	// Section 4.4, Eq 42
-	float h0_k = sqrt(PhillipsSpectrum(k, k_magnitude * k_magnitude, L_phillips) / 2.f);
-	float h0_minus_k = sqrt(PhillipsSpectrum(-k, k_magnitude * k_magnitude, L_phillips) / 2.f);
+	float h0_k = clamp(sqrt(PhillipsSpectrum(k, k_magnitude * k_magnitude, L_phillips) / 2.f), -4000.f, 4000.f);
+	float h0_minus_k = clamp(sqrt(PhillipsSpectrum(-k, k_magnitude * k_magnitude, L_phillips) / 2.f), -4000.f, 4000.f);
 
 	vec4 rnd = GaussianRandom();
 
