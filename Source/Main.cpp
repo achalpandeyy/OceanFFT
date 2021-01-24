@@ -16,40 +16,42 @@
 
 struct OceanFFT final : public Ogle::Application
 {
+    // Note: Don't try to call anything GL in the constructor because it hasn't been initialized yet
     OceanFFT()
     {
-        settings.width = 256;
-        settings.height = 256;
+        settings.width = 1280;
+        settings.height = 720;
         settings.window_title = "OceanFFT | Ogle";
         settings.enable_debug_callback = true;
-        settings.enable_cursor = true;
+        settings.enable_cursor = false;
     }
 
     void Initialize() override
     {
         // Generate grid
-
         // For each X & Z
         const int grid_dim = 1024;
         const int vertex_count = grid_dim + 1;
-
+        
         std::vector<GridVertex> vertices(vertex_count * vertex_count);
         std::vector<unsigned int> indices(grid_dim * grid_dim * 2 * 3);
 
+        float tex_coord_scale = 64.f;
+        
         unsigned int idx = 0;
         for (int z = -grid_dim / 2; z <= grid_dim / 2; ++z)
         {
             for (int x = -grid_dim / 2; x <= grid_dim / 2; ++x)
             {
                 vertices[idx].position = glm::vec3(float(x), 0.f, float(z));
-
+        
                 float u = ((float)x / grid_dim) + 0.5f;
                 float v = ((float)z / grid_dim) + 0.5f;
-                vertices[idx++].tex_coords = glm::vec2(u, v); // For some apparent reason, uv grid is scaled here???
+                vertices[idx++].tex_coords = glm::vec2(u, v) * tex_coord_scale;
             }
         }
         assert(idx == vertices.size());
-
+        
         // Clockwise winding
         idx = 0;
         for (unsigned int y = 0; y < grid_dim; ++y)
@@ -59,26 +61,26 @@ struct OceanFFT final : public Ogle::Application
                 indices[idx++] = (vertex_count * y) + x;
                 indices[idx++] = (vertex_count * (y + 1)) + x;
                 indices[idx++] = (vertex_count * y) + x + 1;
-
+        
                 indices[idx++] = (vertex_count * y) + x + 1;
                 indices[idx++] = (vertex_count * (y + 1)) + x;
                 indices[idx++] = (vertex_count * (y + 1)) + x + 1;
             }
         }
         assert(idx == indices.size());
-
+        
         grid_vbo = std::make_unique<Ogle::VertexBuffer>(vertices.data(), vertices.size() * sizeof(GridVertex));
         grid_ibo = std::make_unique<Ogle::IndexBuffer>(indices.data(), indices.size() * sizeof(unsigned int));
-
+        
         Ogle::VertexAttribs attribs[] = { { 3, 0 }, { 2, offsetof(GridVertex, tex_coords) } };
         grid_vao = std::make_unique<Ogle::VertexArray>(grid_vbo.get(), grid_ibo.get(), attribs, 2, (GLsizei)sizeof(GridVertex));
-
+        
         // Create Shader
         grid_shader = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/DefaultShader.vert",
             "C:/Projects/OceanFFT/Source/Shaders/DefaultShader.frag");
-
-        camera = std::make_unique<Ogle::Camera>(glm::vec3(0.f, 300.f, 300.f), 10000.f);
-
+        
+        camera = std::make_unique<Ogle::Camera>(glm::vec3(0.f, 1.f, 0.f), 1000.f);
+        
         float quad_vertices[] =
         {
             -1.f, -1.f,
@@ -86,63 +88,63 @@ struct OceanFFT final : public Ogle::Application
              1.f,  1.f,
             -1.f,  1.f
         };
-
+        
         unsigned int quad_indices[] = { 0, 1, 2, 2, 3, 0 };
-
+        
         quad_vbo = std::make_unique<Ogle::VertexBuffer>(quad_vertices, sizeof(quad_vertices));
         quad_ibo = std::make_unique<Ogle::IndexBuffer>(quad_indices, sizeof(quad_indices));
-
+        
         Ogle::VertexAttribs quad_attribs[] = { {2, 0} };
         quad_vao = std::make_unique<Ogle::VertexArray>(quad_vbo.get(), quad_ibo.get(), quad_attribs, 1, (GLsizei)(2 * sizeof(float)));
-
+        
         quad_shader = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/DebugQuadViz.vert",
             "C:/Projects/OceanFFT/Source/Shaders/DebugQuadViz.frag");
-
+        
         // Generate tilde_h0_k and tilde_h0_minus_k
         tilde_h0_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/TildeH0.comp");
-
+        
         noise0 = std::unique_ptr<Ogle::Texture2D>(Ogle::Texture2D::CreateFromFile("C:/Projects/OceanFFT/Resources/LDR_LLL1_0.png"));
         noise1 = std::unique_ptr<Ogle::Texture2D>(Ogle::Texture2D::CreateFromFile("C:/Projects/OceanFFT/Resources/LDR_LLL1_1.png"));
         noise2 = std::unique_ptr<Ogle::Texture2D>(Ogle::Texture2D::CreateFromFile("C:/Projects/OceanFFT/Resources/LDR_LLL1_2.png"));
         noise3 = std::unique_ptr<Ogle::Texture2D>(Ogle::Texture2D::CreateFromFile("C:/Projects/OceanFFT/Resources/LDR_LLL1_3.png"));
-
+        
         tilde_h0_k = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RG32F, GL_RG, GL_FLOAT);
         tilde_h0_minus_k = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RG32F, GL_RG, GL_FLOAT);
-
+        
         tilde_h0_program->Bind();
-
+        
         tilde_h0_k->BindImage(0, GL_WRITE_ONLY, tilde_h0_k->internal_format);
         tilde_h0_minus_k->BindImage(1, GL_WRITE_ONLY, tilde_h0_minus_k->internal_format);
-
+        
         tilde_h0_program->SetInt("s_Noise0", 2);
         noise0->Bind(2);
-
+        
         tilde_h0_program->SetInt("s_Noise1", 3);
         noise1->Bind(3);
-
+        
         tilde_h0_program->SetInt("s_Noise2", 4);
         noise2->Bind(4);
-
+        
         tilde_h0_program->SetInt("s_Noise3", 5);
         noise3->Bind(5);
-
+        
         glDispatchCompute(32, 32, 1);
         glFinish();
-
+        
         tilde_h_k_t_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/TildeHKT.comp");
-
+        
         tilde_h_k_t_dx = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT);
         tilde_h_k_t_dy = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT);
         tilde_h_k_t_dz = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT);
         
         // Precompute for butterfly fft --twiddle factors and samples
-
+        
         butterfly_precomp_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/ButterflyPrecomp.comp");
         butterfly_precomp = std::make_unique<Ogle::Texture2D>(glm::log2(DISPLACEMENT_MAP_DIM), DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA,
             GL_FLOAT);
-
+        
         butterfly_precomp_program->Bind();
-
+        
         const unsigned int bit_reversed_indices[] =
         {
             0x00, 0x80, 0x40, 0xC0, 0x20, 0xA0, 0x60, 0xE0, 0x10, 0x90, 0x50, 0xD0, 0x30, 0xB0, 0x70, 0xF0,
@@ -162,10 +164,10 @@ struct OceanFFT final : public Ogle::Application
             0x07, 0x87, 0x47, 0xC7, 0x27, 0xA7, 0x67, 0xE7, 0x17, 0x97, 0x57, 0xD7, 0x37, 0xB7, 0x77, 0xF7,
             0x0F, 0x8F, 0x4F, 0xCF, 0x2F, 0xAF, 0x6F, 0xEF, 0x1F, 0x9F, 0x5F, 0xDF, 0x3F, 0xBF, 0x7F, 0xFF
         };
-
+        
         // Todo: OpenGL spec says, at the very least, UBOs will be no slower than SSBOs, it would be nice to
         // make this into a UBO and enjoy whatever perf gain I can
-
+        
         Ogle::ShaderStorageBuffer ssbo(bit_reversed_indices, sizeof(bit_reversed_indices));
         ssbo.Bind();
         ssbo.BindBase(0);
@@ -175,71 +177,105 @@ struct OceanFFT final : public Ogle::Application
         
         glDispatchCompute(8, 32, 1);
         glFinish();
-
+        
         butterfly_fft_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/ButterflyFFT.comp");
         butterfly_inversion_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/ButterflyInversion.comp");
-
+        
         ping_pong1 = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT);
-
+        
         displacement_y = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_R32F, GL_RED, GL_FLOAT);
+        displacement_y->SetWrappingParams(GL_REPEAT, GL_REPEAT);
+
         displacement_x = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_R32F, GL_RED, GL_FLOAT);
+        displacement_x->SetWrappingParams(GL_REPEAT, GL_REPEAT);
+
         displacement_z = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_R32F, GL_RED, GL_FLOAT);
+        displacement_z->SetWrappingParams(GL_REPEAT, GL_REPEAT);
+
+        ocean_wireframe_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/Grid.vert",
+            "C:/Projects/OceanFFT/Source/Shaders/Grid.tesc", "C:/Projects/OceanFFT/Source/Shaders/Grid.tese",
+            "C:/Projects/OceanFFT/Source/Shaders/Grid.frag");
     }
 
     void Update() override
     {
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // grid_shader->Bind();
-        // grid_shader->SetMat4("u_PV", glm::value_ptr(camera->GetProjViewMatrix((float)settings.width / settings.height)));
-        // 
-        // grid_vao->Bind();
-        // grid_ibo->Bind();
-        // glDrawElements(GL_TRIANGLES, 1024 * 1024 * 2 * 3, GL_UNSIGNED_INT, 0);
-
         tilde_h_k_t_program->Bind();
-
+        
         tilde_h0_k->BindImage(0, GL_READ_ONLY, tilde_h0_k->internal_format);
         tilde_h0_minus_k->BindImage(1, GL_READ_ONLY, tilde_h0_minus_k->internal_format);
         tilde_h_k_t_dx->BindImage(2, GL_WRITE_ONLY, tilde_h_k_t_dx->internal_format);
         tilde_h_k_t_dy->BindImage(3, GL_WRITE_ONLY, tilde_h_k_t_dy->internal_format);
         tilde_h_k_t_dz->BindImage(4, GL_WRITE_ONLY, tilde_h_k_t_dz->internal_format);
-
+        
         tilde_h_k_t_program->SetFloat("u_Time", (float)glfwGetTime());
         
         glDispatchCompute(32, 32, 1);
         
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
+        
         ButterflyFFT(tilde_h_k_t_dy, displacement_y);
         ButterflyFFT(tilde_h_k_t_dx, displacement_x);
         ButterflyFFT(tilde_h_k_t_dz, displacement_z);
 
-        // Visualize Quad
-        quad_shader->Bind();
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        quad_shader->SetInt("s_Texture", 0);
-        // tilde_h_k_t_dy->Bind(0);
-        // butterfly_precomp->Bind(0);
-        // displacement_y->Bind(0);
-        // displacement_x->Bind(0);
-        displacement_z->Bind(0);
+        glViewport(0, 0, settings.width, settings.height);
 
-        quad_ibo->Bind();
-        quad_vao->Bind();
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_CULL_FACE);
+        glDisable(GL_BLEND);
+
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+        ocean_wireframe_program->Bind();
+        ocean_wireframe_program->SetVec3("u_WorldCameraPos", camera->position.x, camera->position.y, camera->position.z);
+        ocean_wireframe_program->SetMat4("u_PV", glm::value_ptr(camera->GetProjViewMatrix((float)settings.width / settings.height)));
+
+        ocean_wireframe_program->SetInt("s_DisplacementY", 0);
+        displacement_y->Bind(0);
+
+        ocean_wireframe_program->SetInt("s_DisplacementX", 1);
+        displacement_x->Bind(1);
+
+        ocean_wireframe_program->SetInt("s_DisplacementZ", 2);
+        displacement_z->Bind(2);
+
+        grid_vao->Bind();
+        grid_ibo->Bind();
+
+        glPatchParameteri(GL_PATCH_VERTICES, 3);
+        glDrawElements(GL_PATCHES, 1024 * 1024 * 2 * 3, GL_UNSIGNED_INT, 0);
+
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        
+        // // Visualize Quad
+        // quad_shader->Bind();
+        // 
+        // quad_shader->SetInt("s_Texture", 0);
+        // // tilde_h_k_t_dy->Bind(0);
+        // // butterfly_precomp->Bind(0);
+        // // displacement_y->Bind(0);
+        // // displacement_x->Bind(0);
+        // displacement_z->Bind(0);
+        // 
+        // quad_ibo->Bind();
+        // quad_vao->Bind();
+        // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     }
 
     void OnKeyPress(int key_code) override
     {
         camera->ProcessKeyboard(key_code, delta_time);
     }
-
+    
     void OnMouseMove(float x_offset, float y_offset) override
     {
         camera->ProcessMouseMove(x_offset, y_offset);
     }
-
+    
     void OnMouseScroll(float vertical_offset) override
     {
         camera->ProcessMouseScroll(vertical_offset);
@@ -250,47 +286,47 @@ private:
     void ButterflyFFT(std::unique_ptr<Ogle::Texture2D>& ping_pong0, std::unique_ptr<Ogle::Texture2D>& displacement)
     {
         butterfly_fft_program->Bind();
-
+    
         butterfly_precomp->BindImage(0, GL_READ_ONLY, butterfly_precomp->internal_format);
         ping_pong0->BindImage(1, GL_READ_WRITE, ping_pong0->internal_format);
         ping_pong1->BindImage(2, GL_READ_WRITE, ping_pong1->internal_format);
-
+    
         unsigned int stage_count = glm::log2(DISPLACEMENT_MAP_DIM);
         unsigned int ping_pong_index = 0;
-
+    
         // Horizontal FFT
         for (unsigned int stage = 0; stage < stage_count; ++stage)
         {
             butterfly_fft_program->SetInt("u_PingPongIndex", ping_pong_index);
             butterfly_fft_program->SetInt("u_FFTDirection", 0);
             butterfly_fft_program->SetInt("u_Stage", stage);
-
+    
             glDispatchCompute(32, 32, 1);
             glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
+    
             ping_pong_index = 1 - ping_pong_index;
         }
-
+    
         // Vertical FFT
         for (unsigned int stage = 0; stage < stage_count; ++stage)
         {
             butterfly_fft_program->SetInt("u_PingPongIndex", ping_pong_index);
             butterfly_fft_program->SetInt("u_FFTDirection", 1);
             butterfly_fft_program->SetInt("u_Stage", stage);
-
+    
             glDispatchCompute(32, 32, 1);
             glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
+    
             ping_pong_index = 1 - ping_pong_index;
         }
-
+    
         butterfly_inversion_program->Bind();
         butterfly_inversion_program->SetInt("u_PingPongIndex", ping_pong_index);
-
+    
         displacement->BindImage(0, GL_WRITE_ONLY, displacement->internal_format);
         ping_pong0->BindImage(1, GL_READ_ONLY, ping_pong0->internal_format);
         ping_pong1->BindImage(2, GL_READ_ONLY, ping_pong1->internal_format);
-
+    
         glDispatchCompute(32, 32, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
     }
@@ -327,13 +363,13 @@ private:
     std::unique_ptr<Ogle::Shader> butterfly_fft_program = nullptr;
     std::unique_ptr<Ogle::Shader> butterfly_inversion_program = nullptr;
 
+    std::unique_ptr<Ogle::Shader> ocean_wireframe_program = nullptr;
+
     std::unique_ptr<Ogle::VertexBuffer> quad_vbo = nullptr;
     std::unique_ptr<Ogle::IndexBuffer> quad_ibo = nullptr;
     std::unique_ptr<Ogle::VertexArray> quad_vao = nullptr;
     std::unique_ptr<Ogle::Shader> quad_shader = nullptr;
 
-    // Todo: Probably you don't have to store texture coordinates, they could be
-    // computed on the fly by the vertex shader
     struct GridVertex
     {
         glm::vec3 position;
