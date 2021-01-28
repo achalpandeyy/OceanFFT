@@ -102,9 +102,4 @@ void main()
 	ivec2 pixel_pos = ivec2(gl_GlobalInvocationID.xy);
 	if (u_fft_direction == 0) HorizontalButterflies(pixel_pos);
 	else if (u_fft_direction == 1) VerticalButterfiles(pixel_pos);
-	else
-	{
-		imageStore(u_pingpong0, pixel_pos, vec4(1.f, 0.f, 1.f, 1.f));
-		imageStore(u_pingpong1, pixel_pos, vec4(1.f, 0.f, 1.f, 1.f));
-	}
 }

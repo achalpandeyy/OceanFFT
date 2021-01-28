@@ -12,12 +12,12 @@ uniform vec3 u_world_camera_pos;
 
 float GetTessellationLevel(float dist0, float dist1)
 {
-	float average_dist = (dist0 + dist1) / 2.f;
+	float average_dist = (dist0 + dist1) / 2.0;
 
-    if (average_dist <= 10.f) return 20.f;
-    else if (average_dist <= 20.f) return 10.f;
-    else if (average_dist <= 30.f) return 5.f;
-    else return 1.f;
+    if (average_dist <= 10.0) return 20.0;
+    else if (average_dist <= 20.0) return 10.0;
+    else if (average_dist <= 30.0) return 5.0;
+    else return 1.0;
 }
 
 void main()

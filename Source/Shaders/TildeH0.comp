@@ -1,7 +1,7 @@
 #version 460 core
 
-#define PI_32F 3.14159265358979f
-#define g 9.81f
+#define PI 3.1415926535897932384626433832795
+#define g 9.81
 
 layout (local_size_x = 32, local_size_y = 32) in;
 
@@ -20,15 +20,15 @@ vec4 GaussianRandom()
 	vec2 tex_coords = vec2(gl_GlobalInvocationID.xy) / float(u_N);
 	
 	// Uniform random numbers
-	float a = clamp(texture(s_Noise0, tex_coords).r, 0.001f, 1.f);
-	float b = clamp(texture(s_Noise1, tex_coords).r, 0.001f, 1.f);
-	float c = clamp(texture(s_Noise2, tex_coords).r, 0.001f, 1.f);
-	float d = clamp(texture(s_Noise3, tex_coords).r, 0.001f, 1.f);
+	float a = clamp(texture(s_Noise0, tex_coords).r, 0.001, 1.0);
+	float b = clamp(texture(s_Noise1, tex_coords).r, 0.001, 1.0);
+	float c = clamp(texture(s_Noise2, tex_coords).r, 0.001, 1.0);
+	float d = clamp(texture(s_Noise3, tex_coords).r, 0.001, 1.0);
 
-	float u0 = 2.f * PI_32F * a;
-	float v0 = sqrt(-2.f * log(b));
-	float u1 = 2.f * PI_32F * c;
-	float v1 = sqrt(-2.f * log(d));
+	float u0 = 2.0 * PI * a;
+	float v0 = sqrt(-2.0 * log(b));
+	float u1 = 2.0 * PI * c;
+	float v1 = sqrt(-2.0 * log(d));
 
 	return vec4(v0 * cos(u0), v0 * sin(u0), v1 * cos(u1), v1 * sin(u1));
 }
@@ -36,16 +36,16 @@ vec4 GaussianRandom()
 // Section 4.3, Eq 41
 float SuppressionFactor(float k_magnitude_sq)
 {
-	float u_SuppressLength = 0.1f;
+	float u_SuppressLength = 0.1;
 	return exp(-k_magnitude_sq * u_SuppressLength * u_SuppressLength);
 }
 
 // Phillips Spectrum, Section 4.3, Eq 40 
 float PhillipsSpectrum(vec2 k, float k_magnitude_sq, float L_phillips)
 {
-	float u_Amplitude = 2.f;
-	vec2 u_WindDirection = normalize(vec2(1.f, 1.f));
-	return u_Amplitude * ((exp(-1.f / (k_magnitude_sq * L_phillips * L_phillips)) * pow(dot(normalize(k), u_WindDirection), 2))
+	float u_Amplitude = 2.0;
+	vec2 u_WindDirection = normalize(vec2(1.0, 1.0));
+	return u_Amplitude * ((exp(-1.0 / (k_magnitude_sq * L_phillips * L_phillips)) * pow(dot(normalize(k), u_WindDirection), 2))
 		* SuppressionFactor(k_magnitude_sq)) / (k_magnitude_sq * k_magnitude_sq);
 }
 
@@ -53,26 +53,26 @@ void main()
 {
 	int u_N = 256;
 	int u_L = 1000;
-	float u_WindSpeed = 80.f;
+	float u_WindSpeed = 80.0;
 
-	vec2 pos = vec2(gl_GlobalInvocationID.xy) - (u_N / 2.f);
+	vec2 pos = vec2(gl_GlobalInvocationID.xy) - (u_N / 2.0);
 
 	// Wavevector, Section 4.3, Eq 36
-	vec2 k = vec2((2.f * PI_32F * pos.x) / u_L, (2.f * PI_32F * pos.y) / u_L);
+	vec2 k = vec2((2.0 * PI * pos.x) / u_L, (2.0 * PI * pos.y) / u_L);
 
 	float k_magnitude = length(k);
-	if (k_magnitude < 0.00001f)	k_magnitude = 0.00001f;
+	if (k_magnitude < 0.00001)	k_magnitude = 0.00001;
 
 	// Largest possible waves arising from a continuous wind of speed wind_speed, Section 4.3, after Eq 40
 	float L_phillips = (u_WindSpeed * u_WindSpeed) / g;
 
 	// Section 4.4, Eq 42
-	float h0_k = clamp(sqrt(PhillipsSpectrum(k, k_magnitude * k_magnitude, L_phillips) / 2.f), -4000.f, 4000.f);
-	float h0_minus_k = clamp(sqrt(PhillipsSpectrum(-k, k_magnitude * k_magnitude, L_phillips) / 2.f), -4000.f, 4000.f);
+	float h0_k = clamp(sqrt(PhillipsSpectrum(k, k_magnitude * k_magnitude, L_phillips) / 2.0), -4000.0, 4000.0);
+	float h0_minus_k = clamp(sqrt(PhillipsSpectrum(-k, k_magnitude * k_magnitude, L_phillips) / 2.0), -4000.0, 4000.0);
 
 	vec4 rnd = GaussianRandom();
 
 	ivec2 pixel_pos = ivec2(gl_GlobalInvocationID.xy);
-	imageStore(tilde_h0_k, pixel_pos, vec4(rnd.xy * h0_k, 0.f, 1.f));
-	imageStore(tilde_h0_minus_k, pixel_pos, vec4(rnd.zw * h0_minus_k, 0.f, 1.f));
+	imageStore(tilde_h0_k, pixel_pos, vec4(rnd.xy * h0_k, 0.0, 1.0));
+	imageStore(tilde_h0_minus_k, pixel_pos, vec4(rnd.zw * h0_minus_k, 0.0, 1.0));
 }

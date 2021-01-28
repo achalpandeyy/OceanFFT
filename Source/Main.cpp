@@ -134,9 +134,17 @@ struct OceanFFT final : public Ogle::Application
         
         tilde_h_k_t_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/TildeHKT.comp");
         
-        tilde_h_k_t_dx = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT);
-        tilde_h_k_t_dy = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT);
-        tilde_h_k_t_dz = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT);
+        tilde_h_k_t_dx = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT,
+            GL_LINEAR, GL_LINEAR);
+        tilde_h_k_t_dx->SetWrappingParams(GL_REPEAT, GL_REPEAT);
+
+        tilde_h_k_t_dy = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT,
+            GL_LINEAR, GL_LINEAR);
+        tilde_h_k_t_dy->SetWrappingParams(GL_REPEAT, GL_REPEAT);
+
+        tilde_h_k_t_dz = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT,
+            GL_LINEAR, GL_LINEAR);
+        tilde_h_k_t_dz->SetWrappingParams(GL_REPEAT, GL_REPEAT);
         
         // Precompute for butterfly fft --twiddle factors and samples
         
@@ -193,12 +201,18 @@ struct OceanFFT final : public Ogle::Application
         displacement_z = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_R32F, GL_RED, GL_FLOAT);
         displacement_z->SetWrappingParams(GL_REPEAT, GL_REPEAT);
 
+        normal_map_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/NormalMap.comp");
+        normal_map = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT,
+            GL_LINEAR, GL_LINEAR);
+        normal_map->SetWrappingParams(GL_REPEAT, GL_REPEAT);
+
         ocean_wireframe_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/Grid.vert",
             "C:/Projects/OceanFFT/Source/Shaders/Grid.tesc", "C:/Projects/OceanFFT/Source/Shaders/Grid.tese",
             "C:/Projects/OceanFFT/Source/Shaders/Grid.frag");
 
-        normal_map_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/NormalMap.comp");
-        normal_map = std::make_unique<Ogle::Texture2D>(DISPLACEMENT_MAP_DIM, DISPLACEMENT_MAP_DIM, GL_RGBA32F, GL_RGBA, GL_FLOAT);
+        ocean_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/Grid.vert",
+            "C:/Projects/OceanFFT/Source/Shaders/Grid.tesc", "C:/Projects/OceanFFT/Source/Shaders/Grid.tese",
+            "C:/Projects/OceanFFT/Source/Shaders/Ocean.frag");
     }
 
     void Update() override
@@ -240,60 +254,94 @@ struct OceanFFT final : public Ogle::Application
 
         // Generate normal map
         normal_map_program->Bind();
-
+        
         normal_map->BindImage(0, GL_WRITE_ONLY, normal_map->internal_format);
-
-        normal_map_program->SetUnsignedInt("s_displacement_map_y", 0);
+        
+        normal_map_program->SetInt("s_displacement_map_y", 0);
         displacement_y->Bind(0);
-
+        
         glDispatchCompute(32, 32, 1);
-
+        
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
+        
+        // Render ocean
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+        
         glViewport(0, 0, settings.width, settings.height);
         
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glDisable(GL_BLEND);
         
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        ocean_program->Bind();
+        ocean_program->SetVec3("u_world_camera_pos", camera->position.x, camera->position.y, camera->position.z);
+        ocean_program->SetFloat("u_displacement_scale", displacement_scale);
+        ocean_program->SetFloat("u_choppiness", choppiness);
+        ocean_program->SetMat4("u_pv", glm::value_ptr(camera->GetProjViewMatrix((float)settings.width / settings.height)));
         
-        ocean_wireframe_program->Bind();
-        ocean_wireframe_program->SetVec3("u_world_camera_pos", camera->position.x, camera->position.y, camera->position.z);
-        ocean_wireframe_program->SetMat4("u_pv", glm::value_ptr(camera->GetProjViewMatrix((float)settings.width / settings.height)));
-        ocean_wireframe_program->SetFloat("u_displacement_scale", displacement_scale);
-        ocean_wireframe_program->SetFloat("u_choppiness", choppiness);
-        
-        ocean_wireframe_program->SetInt("s_displacement_y", 0);
+        ocean_program->SetInt("s_displacement_y", 0);
         displacement_y->Bind(0);
         
-        ocean_wireframe_program->SetInt("s_displacement_x", 1);
+        ocean_program->SetInt("s_displacement_x", 1);
         displacement_x->Bind(1);
         
-        ocean_wireframe_program->SetInt("s_displacement_z", 2);
+        ocean_program->SetInt("s_displacement_z", 2);
         displacement_z->Bind(2);
+        
+        ocean_program->SetInt("s_normal_map", 3);
+        normal_map->Bind(3);
         
         grid_vao->Bind();
         grid_ibo->Bind();
         
         glPatchParameteri(GL_PATCH_VERTICES, 3);
         glDrawElements(GL_PATCHES, 1024 * 1024 * 2 * 3, GL_UNSIGNED_INT, 0);
-        
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+        // glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // 
+        // glViewport(0, 0, settings.width, settings.height);
+        // 
+        // glEnable(GL_DEPTH_TEST);
+        // glEnable(GL_CULL_FACE);
+        // glDisable(GL_BLEND);
+        // 
+        // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        // 
+        // ocean_wireframe_program->Bind();
+        // ocean_wireframe_program->SetVec3("u_world_camera_pos", camera->position.x, camera->position.y, camera->position.z);
+        // ocean_wireframe_program->SetMat4("u_pv", glm::value_ptr(camera->GetProjViewMatrix((float)settings.width / settings.height)));
+        // ocean_wireframe_program->SetFloat("u_displacement_scale", displacement_scale);
+        // ocean_wireframe_program->SetFloat("u_choppiness", choppiness);
+        // 
+        // ocean_wireframe_program->SetInt("s_displacement_y", 0);
+        // displacement_y->Bind(0);
+        // 
+        // ocean_wireframe_program->SetInt("s_displacement_x", 1);
+        // displacement_x->Bind(1);
+        // 
+        // ocean_wireframe_program->SetInt("s_displacement_z", 2);
+        // displacement_z->Bind(2);
+        // 
+        // grid_vao->Bind();
+        // grid_ibo->Bind();
+        // 
+        // glPatchParameteri(GL_PATCH_VERTICES, 3);
+        // glDrawElements(GL_PATCHES, 1024 * 1024 * 2 * 3, GL_UNSIGNED_INT, 0);
+        // 
+        // glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
         // // Visualize Quad
         // quad_shader->Bind();
         // 
-        // quad_shader->SetUnsignedInt("s_texture", 0);
+        // quad_shader->SetInt("s_texture", 0);
         // // tilde_h_k_t_dy->Bind(0);
         // // butterfly_precomp->Bind(0);
-        // // displacement_y->Bind(0);
+        // displacement_y->Bind(0);
         // // displacement_x->Bind(0);
         // // displacement_z->Bind(0);
-        // normal_map->Bind(0);
+        // // normal_map->Bind(0);
         // 
         // quad_ibo->Bind();
         // quad_vao->Bind();
@@ -420,8 +468,9 @@ private:
     std::unique_ptr<Ogle::Shader> butterfly_fft_program = nullptr;
     std::unique_ptr<Ogle::Shader> butterfly_inversion_program = nullptr;
 
-    std::unique_ptr<Ogle::Shader> ocean_wireframe_program = nullptr;
     std::unique_ptr<Ogle::Shader> normal_map_program = nullptr;
+    std::unique_ptr<Ogle::Shader> ocean_wireframe_program = nullptr;
+    std::unique_ptr<Ogle::Shader> ocean_program = nullptr;
 
     std::unique_ptr<Ogle::VertexBuffer> quad_vbo = nullptr;
     std::unique_ptr<Ogle::IndexBuffer> quad_ibo = nullptr;
