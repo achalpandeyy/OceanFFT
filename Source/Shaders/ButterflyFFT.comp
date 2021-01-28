@@ -3,13 +3,13 @@
 layout (local_size_x = 32, local_size_y = 32) in;
 
 // Todo: These binding points could pose a problem
-layout (binding = 0, rgba32f) readonly uniform image2D u_ButterflyPrecomp;
-layout (binding = 1, rgba32f) uniform image2D u_PingPong0;
-layout (binding = 2, rgba32f) uniform image2D u_PingPong1;
+layout (binding = 0, rgba32f) readonly uniform image2D u_butterfly_precomp;
+layout (binding = 1, rgba32f) uniform image2D u_pingpong0;
+layout (binding = 2, rgba32f) uniform image2D u_pingpong1;
 
-uniform int u_PingPongIndex;
-uniform int u_FFTDirection;
-uniform int u_Stage;
+uniform int u_pingpong_index;
+uniform int u_fft_direction;
+uniform int u_stage;
 
 struct Complex
 {
@@ -31,12 +31,12 @@ Complex Multiply(Complex c1, Complex c2)
 
 void HorizontalButterflies(in ivec2 pixel_pos)
 {
-	vec4 butterfly_precomp = imageLoad(u_ButterflyPrecomp, ivec2(u_Stage, pixel_pos.x));
+	vec4 butterfly_precomp = imageLoad(u_butterfly_precomp, ivec2(u_stage, pixel_pos.x));
 
-	if (u_PingPongIndex == 0)
+	if (u_pingpong_index == 0)
 	{
-		vec2 a_ = imageLoad(u_PingPong0, ivec2(butterfly_precomp.z, pixel_pos.y)).rg;
-		vec2 b_ = imageLoad(u_PingPong0, ivec2(butterfly_precomp.w, pixel_pos.y)).rg;
+		vec2 a_ = imageLoad(u_pingpong0, ivec2(butterfly_precomp.z, pixel_pos.y)).rg;
+		vec2 b_ = imageLoad(u_pingpong0, ivec2(butterfly_precomp.w, pixel_pos.y)).rg;
 
 		Complex a = Complex(a_.x, a_.y);
 		Complex b = Complex(b_.x, b_.y);
@@ -45,12 +45,12 @@ void HorizontalButterflies(in ivec2 pixel_pos)
 		// Buttefly operation
 		Complex result = Add(a, Multiply(twiddle_factor, b));
 
-		imageStore(u_PingPong1, pixel_pos, vec4(result.real, result.im, 0.f, 1.f));
+		imageStore(u_pingpong1, pixel_pos, vec4(result.real, result.im, 0.f, 1.f));
 	}
-	else if (u_PingPongIndex == 1)
+	else if (u_pingpong_index == 1)
 	{
-		vec2 a_ = imageLoad(u_PingPong1, ivec2(butterfly_precomp.z, pixel_pos.y)).rg;
-		vec2 b_ = imageLoad(u_PingPong1, ivec2(butterfly_precomp.w, pixel_pos.y)).rg;
+		vec2 a_ = imageLoad(u_pingpong1, ivec2(butterfly_precomp.z, pixel_pos.y)).rg;
+		vec2 b_ = imageLoad(u_pingpong1, ivec2(butterfly_precomp.w, pixel_pos.y)).rg;
 
 		Complex a = Complex(a_.x, a_.y);
 		Complex b = Complex(b_.x, b_.y);
@@ -59,18 +59,18 @@ void HorizontalButterflies(in ivec2 pixel_pos)
 		// Buttefly operation
 		Complex result = Add(a, Multiply(twiddle_factor, b));
 
-		imageStore(u_PingPong0, pixel_pos, vec4(result.real, result.im, 0.f, 1.f));
+		imageStore(u_pingpong0, pixel_pos, vec4(result.real, result.im, 0.f, 1.f));
 	}
 }
 
 void VerticalButterfiles(in ivec2 pixel_pos)
 {
-	vec4 butterfly_precomp = imageLoad(u_ButterflyPrecomp, ivec2(u_Stage, pixel_pos.y));
+	vec4 butterfly_precomp = imageLoad(u_butterfly_precomp, ivec2(u_stage, pixel_pos.y));
 
-	if (u_PingPongIndex == 0)
+	if (u_pingpong_index == 0)
 	{
-		vec2 a_ = imageLoad(u_PingPong0, ivec2(pixel_pos.x, butterfly_precomp.z)).rg;
-		vec2 b_ = imageLoad(u_PingPong0, ivec2(pixel_pos.x, butterfly_precomp.w)).rg;
+		vec2 a_ = imageLoad(u_pingpong0, ivec2(pixel_pos.x, butterfly_precomp.z)).rg;
+		vec2 b_ = imageLoad(u_pingpong0, ivec2(pixel_pos.x, butterfly_precomp.w)).rg;
 
 		Complex a = Complex(a_.x, a_.y);
 		Complex b = Complex(b_.x, b_.y);
@@ -79,12 +79,12 @@ void VerticalButterfiles(in ivec2 pixel_pos)
 		// Buttefly operation
 		Complex result = Add(a, Multiply(twiddle_factor, b));
 
-		imageStore(u_PingPong1, pixel_pos, vec4(result.real, result.im, 0.f, 1.f));
+		imageStore(u_pingpong1, pixel_pos, vec4(result.real, result.im, 0.f, 1.f));
 	}
-	else if (u_PingPongIndex == 1)
+	else if (u_pingpong_index == 1)
 	{
-		vec2 a_ = imageLoad(u_PingPong1, ivec2(pixel_pos.x, butterfly_precomp.z)).rg;
-		vec2 b_ = imageLoad(u_PingPong1, ivec2(pixel_pos.x, butterfly_precomp.w)).rg;
+		vec2 a_ = imageLoad(u_pingpong1, ivec2(pixel_pos.x, butterfly_precomp.z)).rg;
+		vec2 b_ = imageLoad(u_pingpong1, ivec2(pixel_pos.x, butterfly_precomp.w)).rg;
 
 		Complex a = Complex(a_.x, a_.y);
 		Complex b = Complex(b_.x, b_.y);
@@ -93,18 +93,18 @@ void VerticalButterfiles(in ivec2 pixel_pos)
 		// Buttefly operation
 		Complex result = Add(a, Multiply(twiddle_factor, b));
 
-		imageStore(u_PingPong0, pixel_pos, vec4(result.real, result.im, 0.f, 1.f));
+		imageStore(u_pingpong0, pixel_pos, vec4(result.real, result.im, 0.f, 1.f));
 	}
 }
 
 void main()
 {
 	ivec2 pixel_pos = ivec2(gl_GlobalInvocationID.xy);
-	if (u_FFTDirection == 0) HorizontalButterflies(pixel_pos);
-	else if (u_FFTDirection == 1) VerticalButterfiles(pixel_pos);
+	if (u_fft_direction == 0) HorizontalButterflies(pixel_pos);
+	else if (u_fft_direction == 1) VerticalButterfiles(pixel_pos);
 	else
 	{
-		imageStore(u_PingPong0, pixel_pos, vec4(1.f, 0.f, 1.f, 1.f));
-		imageStore(u_PingPong1, pixel_pos, vec4(1.f, 0.f, 1.f, 1.f));
+		imageStore(u_pingpong0, pixel_pos, vec4(1.f, 0.f, 1.f, 1.f));
+		imageStore(u_pingpong1, pixel_pos, vec4(1.f, 0.f, 1.f, 1.f));
 	}
 }

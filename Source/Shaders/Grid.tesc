@@ -2,13 +2,13 @@
 
 layout (vertices = 3) out;
 
-in vec3 TCS_in_WorldPos[];
-in vec2 TCS_in_TexCoord[];
+in vec3 TCS_in_world_pos[];
+in vec2 TCS_in_tex_coord[];
 
-out vec3 TES_in_WorldPos[];
-out vec2 TES_in_TexCoord[];
+out vec3 TES_in_world_pos[];
+out vec2 TES_in_tex_coord[];
 
-uniform vec3 u_WorldCameraPos;
+uniform vec3 u_world_camera_pos;
 
 float GetTessellationLevel(float dist0, float dist1)
 {
@@ -22,12 +22,12 @@ float GetTessellationLevel(float dist0, float dist1)
 
 void main()
 {
-	TES_in_WorldPos[gl_InvocationID] = TCS_in_WorldPos[gl_InvocationID];
-	TES_in_TexCoord[gl_InvocationID] = TCS_in_TexCoord[gl_InvocationID];
+	TES_in_world_pos[gl_InvocationID] = TCS_in_world_pos[gl_InvocationID];
+	TES_in_tex_coord[gl_InvocationID] = TCS_in_tex_coord[gl_InvocationID];
 
-	float dist_cam_v0 = distance(u_WorldCameraPos, TES_in_WorldPos[0]);
-	float dist_cam_v1 = distance(u_WorldCameraPos, TES_in_WorldPos[1]);
-	float dist_cam_v2 = distance(u_WorldCameraPos, TES_in_WorldPos[2]);
+	float dist_cam_v0 = distance(u_world_camera_pos, TES_in_world_pos[0]);
+	float dist_cam_v1 = distance(u_world_camera_pos, TES_in_world_pos[1]);
+	float dist_cam_v2 = distance(u_world_camera_pos, TES_in_world_pos[2]);
 
 	gl_TessLevelOuter[0] = GetTessellationLevel(dist_cam_v1, dist_cam_v2);
 	gl_TessLevelOuter[1] = GetTessellationLevel(dist_cam_v0, dist_cam_v2);

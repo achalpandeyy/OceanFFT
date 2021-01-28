@@ -2,17 +2,18 @@
 
 #define PI_32F 3.14159265358979f
 #define g 9.81f
+#define DISPLACEMENT_MAP_DIM 256
 
 layout (local_size_x = 32, local_size_y = 32) in;
 
-layout (binding = 0, rg32f) readonly uniform image2D tilde_h0_k;
-layout (binding = 1, rg32f) readonly uniform image2D tilde_h0_minus_k;
+layout (binding = 0, rg32f) readonly uniform image2D u_tilde_h0_k;
+layout (binding = 1, rg32f) readonly uniform image2D u_tilde_h0_minus_k;
 
-layout (binding = 2, rgba32f) writeonly uniform image2D tilde_h_kt_dx;
-layout (binding = 3, rgba32f) writeonly uniform image2D tilde_h_kt_dy;
-layout (binding = 4, rgba32f) writeonly uniform image2D tilde_h_kt_dz;
+layout (binding = 2, rgba32f) writeonly uniform image2D u_tilde_h_kt_dx;
+layout (binding = 3, rgba32f) writeonly uniform image2D u_tilde_h_kt_dy;
+layout (binding = 4, rgba32f) writeonly uniform image2D u_tilde_h_kt_dz;
 
-uniform float u_Time;
+uniform float u_time;
 
 struct Complex
 {
@@ -40,13 +41,13 @@ Complex Conjugate(Complex c)
 
 void main()
 {
-	int u_N = 256;
-	int u_L = 1000;
+	int N = DISPLACEMENT_MAP_DIM;
+	int L = 1000;
 
-	vec2 pos = vec2(gl_GlobalInvocationID.xy) - (u_N / 2.f);
+	vec2 pos = vec2(gl_GlobalInvocationID.xy) - (N / 2.f);
 
 	// Wavevector, Section 4.3, Eq 36
-	vec2 k = vec2((2.f * PI_32F * pos.x) / u_L, (2.f * PI_32F * pos.y) / u_L);
+	vec2 k = vec2((2.f * PI_32F * pos.x) / L, (2.f * PI_32F * pos.y) / L);
 
 	float k_magnitude = length(k);
 	if (k_magnitude < 0.00001f)	k_magnitude = 0.00001f;
@@ -57,26 +58,26 @@ void main()
 	ivec2 pixel_pos = ivec2(gl_GlobalInvocationID.xy);
 
 	// First term of Eq 43, Section 4.4
-	vec2 h0_k = imageLoad(tilde_h0_k, pixel_pos).xy;
+	vec2 h0_k = imageLoad(u_tilde_h0_k, pixel_pos).xy;
 	Complex amp = Complex(h0_k.x, h0_k.y);
-	Complex exp_iwt = Complex(cos(w * u_Time), sin(w * u_Time));
+	Complex exp_iwt = Complex(cos(w * u_time), sin(w * u_time));
 
 	// Second term of Eq 43, Section 4.4
-	vec2 h0_minus_k = imageLoad(tilde_h0_minus_k, pixel_pos).xy;
+	vec2 h0_minus_k = imageLoad(u_tilde_h0_minus_k, pixel_pos).xy;
 	Complex amp_conj = Conjugate(Complex(h0_minus_k.x, h0_minus_k.y));
-	Complex exp_minus_iwt = Complex(cos(w * u_Time), -sin(w * u_Time));
+	Complex exp_minus_iwt = Complex(cos(w * u_time), -sin(w * u_time));
 
 	// Section 4.4, Eq 43
 	Complex h_k_t_dy = Add(Multiply(amp, exp_iwt), Multiply(amp_conj, exp_minus_iwt));
-	imageStore(tilde_h_kt_dy, pixel_pos, vec4(h_k_t_dy.real, h_k_t_dy.im, 0.f, 1.f));
+	imageStore(u_tilde_h_kt_dy, pixel_pos, vec4(h_k_t_dy.real, h_k_t_dy.im, 0.f, 1.f));
 
 	// Section 4.6, Eq 44
 	Complex dx = Complex(0.f, -k.x / k_magnitude);
 	Complex h_k_t_dx = Multiply(dx, h_k_t_dy);
-	imageStore(tilde_h_kt_dx, pixel_pos, vec4(h_k_t_dx.real, h_k_t_dx.im, 0.f, 1.f));
+	imageStore(u_tilde_h_kt_dx, pixel_pos, vec4(h_k_t_dx.real, h_k_t_dx.im, 0.f, 1.f));
 
 	// Section 4.6, Eq 44
 	Complex dz = Complex(0.f, -k.y / k_magnitude);
 	Complex h_k_t_dz = Multiply(dz, h_k_t_dy);
-	imageStore(tilde_h_kt_dz, pixel_pos, vec4(h_k_t_dz.real, h_k_t_dz.im, 0.f, 1.f));
+	imageStore(u_tilde_h_kt_dz, pixel_pos, vec4(h_k_t_dz.real, h_k_t_dz.im, 0.f, 1.f));
 }

@@ -1,10 +1,11 @@
 #version 460 core
 
 #define PI_32F 3.14159265358979f
+#define DISPLACEMENT_MAP_DIM 256
 
 layout (local_size_x = 8, local_size_y = 32) in;
 
-layout (binding = 0, rgba32f) writeonly uniform image2D u_ButterflyPrecomp;
+layout (binding = 0, rgba32f) writeonly uniform image2D u_butterfly_precomp;
 
 layout (std430, binding = 0) buffer indices
 {
@@ -16,10 +17,10 @@ void main()
 {
 	vec2 pos = gl_GlobalInvocationID.xy;
 
-	int u_N = 256;
+	int N = DISPLACEMENT_MAP_DIM;
 
 	// Twiddle factor exponent, Thesis, Section 4.2.6, Eq 4.6 
-	float k = mod(pos.y * (float(u_N) / pow(2, pos.x + 1)), u_N);
+	float k = mod(pos.y * (float(N) / pow(2, pos.x + 1)), N);
 
 	// Thesis, Section 4.2.6, Eq 4.7
 	int butterfly_span = int(pow(2, pos.x));
@@ -30,8 +31,8 @@ void main()
 	ivec2 pixel_pos = ivec2(gl_GlobalInvocationID.xy);
 
 	vec4 result;
-	result.x = cos(2.f * PI_32F * k / float(u_N));	// Twiddle factor real part
-	result.y = sin(2.f * PI_32F * k / float(u_N));	// Twiddle factor imaginary part
+	result.x = cos(2.f * PI_32F * k / float(N));	// Twiddle factor real part
+	result.y = sin(2.f * PI_32F * k / float(N));	// Twiddle factor imaginary part
 
 	// Store the sample indices for the next stage
 	if (pos.x == 0)
@@ -61,5 +62,5 @@ void main()
 		}
 	}
 
-	imageStore(u_ButterflyPrecomp, pixel_pos, result);
+	imageStore(u_butterfly_precomp, pixel_pos, result);
 }
