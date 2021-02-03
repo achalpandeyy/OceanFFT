@@ -2,30 +2,38 @@
 
 layout (location = 0) out vec4 FS_out_color;
 
-in vec3 FS_in_world_pos;
-in vec3 FS_in_normal;
+// in vec3 FS_in_pos_world;
+// in vec3 FS_in_normal;
+in vec2 FS_in_tex_coord;
 
-uniform vec3 u_world_camera_pos;
+// uniform vec3 u_world_camera_pos;
+uniform sampler2D u_input;
+
+// vec3 HDR(vec3 color, float exposure)
+// {
+//     return 1.0 - exp(-color * exposure);
+// }
 
 void main()
 {
-    vec3 normal = FS_in_normal;
-	vec3 view_dir = normalize(u_world_camera_pos - FS_in_world_pos);
-	vec3 reflect_dir = reflect(-view_dir, normal);
+    // vec3 normal = FS_in_normal;
+    // 
+	// vec3 view_dir = normalize(u_world_camera_pos - FS_in_pos_world);
+    // float fresnel = 0.02 + 0.98 * pow(1.0 - dot(normal, view_dir), 5.0);
+    // 
+    // vec3 sun_direction = vec3(-1.0, 1.0, 1.0);
+    // vec3 sky_color = vec3(3.2, 9.6, 12.8);
+    // vec3 ocean_color = vec3(0.004, 0.016, 0.047);
+    // float exposure = 0.35;
+    // 
+    // vec3 sky = fresnel * sky_color;
+    // float diffuse = clamp(dot(normal, normalize(sun_direction)), 0.0, 1.0);
+    // vec3 water = (1.0 - fresnel) * ocean_color * sky_color * diffuse;
+    // 
+    // vec3 color = sky + water;
 
-	vec3 light_dir = normalize(vec3(0.f, 0.f, -1.0));
+    // FS_out_color = vec4(HDR(color, exposure), 1.0);
 
-    vec3 sea_color = vec3(0.0, 0.169668034, 0.4398943190);
-
-    float n_dot_l = max(dot(normal, light_dir), 0.0);
-
-    vec3 color =  n_dot_l * sea_color;
-
-    // HDR tonemapping
-    color = color / (color + vec3(1.0));
-
-    // gamma correct
-    color = pow(color, vec3(1.f / 2.2));
-
-	FS_out_color = vec4(color, 1.0);
+    vec4 test_color = 0.10 * texture(u_input, FS_in_tex_coord);
+    FS_out_color = vec4(test_color.r, test_color.g, 0.0, 1.0);
 }
