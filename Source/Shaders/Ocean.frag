@@ -34,6 +34,7 @@ void main()
 
     // FS_out_color = vec4(HDR(color, exposure), 1.0);
 
-    vec4 test_color = 0.10 * texture(u_input, FS_in_tex_coord);
-    FS_out_color = vec4(test_color.r, test_color.g, 0.0, 1.0);
+    // vec4 test_color = 10000.0 * texture(u_input, FS_in_tex_coord);
+    vec4 test_color = texture(u_input, FS_in_tex_coord);
+    FS_out_color = vec4(test_color.r, test_color.g, test_color.b, 1.0);
 }
