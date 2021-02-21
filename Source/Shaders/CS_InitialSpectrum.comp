@@ -11,6 +11,7 @@ layout (local_size_x = COMPUTE_WORK_GROUP_DIM, local_size_y = COMPUTE_WORK_GROUP
 
 layout(binding = 0, r32f) writeonly uniform image2D u_initial_spectrum;
 
+uniform int u_resolution;
 uniform int u_ocean_size;
 uniform vec2 u_wind;
 
@@ -26,8 +27,6 @@ float square(float x)
 
 void main()
 {
-	float u_resolution = 512;
-
 	ivec2 pixel_coord = ivec2(gl_GlobalInvocationID.xy);
 	float n = (pixel_coord.x < 0.5f * u_resolution) ? pixel_coord.x : pixel_coord.x - u_resolution;
 	float m = (pixel_coord.y < 0.5f * u_resolution) ? pixel_coord.y : pixel_coord.y - u_resolution;

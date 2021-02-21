@@ -7,12 +7,13 @@ out vec3 FS_in_world_pos;
 out vec2 FS_in_tex_coord;
 
 uniform mat4 u_pv;
+uniform int u_ocean_size;
 
 uniform sampler2D u_displacement_map;
 
 void main()
 {
-	vec3 position = VS_in_world_pos + texture(u_displacement_map, VS_in_tex_coord).rgb;
+	vec3 position = VS_in_world_pos + texture(u_displacement_map, VS_in_tex_coord).rgb * (512.f/u_ocean_size);
 	gl_Position = u_pv * vec4(position, 1.f);
 
 	FS_in_world_pos = position;

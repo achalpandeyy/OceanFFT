@@ -13,9 +13,8 @@
 #include <vector>
 #include <random>
 
-#define GRID_DIM 256
+#define GRID_DIM 1024
 #define RESOLUTION 512
-#define DISPLACEMENT_MAP_DIM 256
 #define WORK_GROUP_DIM 32
 
 #define PI 3.14159265359f
@@ -40,7 +39,7 @@ struct OceanFFT final : public Ogle::Application
         std::vector<GridVertex> vertices(vertex_count * vertex_count);
         std::vector<unsigned int> indices(GRID_DIM * GRID_DIM * 2 * 3);
         
-        float tex_coord_scale = 1.f;
+        float tex_coord_scale = 2.f;
         
         unsigned int idx = 0;
         for (int z = -GRID_DIM / 2; z <= GRID_DIM / 2; ++z)
@@ -79,7 +78,7 @@ struct OceanFFT final : public Ogle::Application
         Ogle::VertexAttribs attribs[] = { { 3, 0 }, { 2, offsetof(GridVertex, tex_coords) } };
         grid_vao = std::make_unique<Ogle::VertexArray>(grid_vbo.get(), grid_ibo.get(), attribs, 2, (GLsizei)sizeof(GridVertex));
         
-        camera = std::make_unique<Ogle::Camera>(glm::vec3(220.f, 120.f, 160.f), 1000.f);
+        camera = std::make_unique<Ogle::Camera>(glm::vec3(0.f, 60.f, 0.f), 0.1f, 10000.f, 1000.f);
         
         // Initial spectrum
         initial_spectrum_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_InitialSpectrum.comp");
@@ -96,17 +95,17 @@ struct OceanFFT final : public Ogle::Application
         {
             ping_phase_array[i] = dist(rng) * 2.f * PI;
         }
-        
-        ping_phase_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_R32F, GL_RED, GL_FLOAT, GL_NEAREST, GL_NEAREST,
-            ping_phase_array.data());
-        pong_phase_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_R32F, GL_RED, GL_FLOAT);
-        
+
         phase_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_Phase.comp");
+        ping_phase_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_R32F, GL_RED, GL_FLOAT, GL_NEAREST, GL_NEAREST,
+            GL_CLAMP_TO_BORDER, GL_CLAMP_TO_BORDER, ping_phase_array.data());
+        pong_phase_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_R32F, GL_RED, GL_FLOAT);
         
         // Time-varying spectrum
         
         spectrum_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_Spectrum.comp");
-        spectrum_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_LINEAR, GL_LINEAR);
+        spectrum_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_LINEAR, GL_LINEAR,
+            GL_REPEAT, GL_REPEAT);
         
         temp_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_RGBA32F, GL_RGBA, GL_FLOAT);
         
@@ -116,7 +115,8 @@ struct OceanFFT final : public Ogle::Application
         // Normal map
 
         normal_map_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_NormalMap.comp");
-        normal_map = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_LINEAR, GL_LINEAR);
+        normal_map = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_LINEAR, GL_LINEAR,
+            GL_REPEAT, GL_REPEAT);
         
         // Ocean shading
 
@@ -137,8 +137,9 @@ struct OceanFFT final : public Ogle::Application
         {
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             bool ocean_size_changed = ImGui::SliderInt("Ocean Size", &ocean_size, 100, 1000);
-        
-            bool wind_changed = ImGui::SliderFloat("Wind Magnitude", &wind_magnitude, 5.f, 25.f)
+            
+            // Todo: Check this wind magnitude range for the ocean_size variable
+            bool wind_changed = ImGui::SliderFloat("Wind Magnitude", &wind_magnitude, 5.5f, 25.f)
                 || ImGui::SliderFloat("Wind Angle", &wind_angle, 0, 359);
         
             ImGui::SliderFloat("Choppiness", &choppiness, 0.f, 2.5f);
@@ -151,6 +152,7 @@ struct OceanFFT final : public Ogle::Application
         {
             initial_spectrum_program->Bind();
             initial_spectrum_program->SetInt("u_ocean_size", ocean_size);
+            initial_spectrum_program->SetInt("u_resolution", RESOLUTION);
         
             float wind_angle_rad = glm::radians(wind_angle);
             initial_spectrum_program->SetVec2("u_wind", wind_magnitude * glm::cos(wind_angle_rad), wind_magnitude * glm::sin(wind_angle_rad));
@@ -165,6 +167,7 @@ struct OceanFFT final : public Ogle::Application
         phase_program->Bind();
         phase_program->SetInt("u_ocean_size", ocean_size);
         phase_program->SetFloat("u_delta_time", delta_time);
+        phase_program->SetInt("u_resolution", RESOLUTION);
         
         // Todo: Why do you need ping-ponging here, again?
         if (is_ping_phase)
@@ -270,6 +273,7 @@ struct OceanFFT final : public Ogle::Application
         ocean_program->Bind();
         ocean_program->SetMat4("u_pv", glm::value_ptr(camera->GetProjViewMatrix((float)settings.width / settings.height)));
         ocean_program->SetVec3("u_world_camera_pos", camera->position.x, camera->position.y, camera->position.z);
+        ocean_program->SetInt("u_ocean_size", ocean_size);
         
         ocean_program->SetInt("u_displacement_map", 0);
         temp_as_input ? temp_texture->Bind(0) : spectrum_texture->Bind(0); // Todo: Make it clear that here we are binding disp map
@@ -281,7 +285,10 @@ struct OceanFFT final : public Ogle::Application
         
         grid_vao->Bind();
         grid_ibo->Bind();
-        
+
+        // Todo: You need to set something (macro/uniform) indicating if its rendering wireframe mode
+        // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
         glDrawElements(GL_TRIANGLES, GRID_DIM * GRID_DIM * 2 * 3, GL_UNSIGNED_INT, 0);
     }
 
@@ -352,7 +359,8 @@ private:
     bool show_debug_gui = false;
     bool changed = true;
 
-    int ocean_size = 250;
+    int ocean_size = 1024;
+
     float wind_magnitude = 14.142135f;
     float wind_angle = 45.f;
     float choppiness = 1.5f;
