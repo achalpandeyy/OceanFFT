@@ -78,7 +78,7 @@ struct OceanFFT final : public Ogle::Application
         Ogle::VertexAttribs attribs[] = { { 3, 0 }, { 2, offsetof(GridVertex, tex_coords) } };
         grid_vao = std::make_unique<Ogle::VertexArray>(grid_vbo.get(), grid_ibo.get(), attribs, 2, (GLsizei)sizeof(GridVertex));
         
-        camera = std::make_unique<Ogle::Camera>(glm::vec3(0.f, 60.f, 0.f), 0.1f, 10000.f, 1000.f);
+        camera = std::make_unique<Ogle::Camera>(glm::vec3(0.f, 60.f, 0.f), 0.1f, 1000.f, 1000.f);
         
         // Initial spectrum
         initial_spectrum_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_InitialSpectrum.comp");
@@ -92,9 +92,7 @@ struct OceanFFT final : public Ogle::Application
         std::uniform_real_distribution<float> dist(0.f, 1.f);
         
         for (size_t i = 0; i < RESOLUTION * RESOLUTION; ++i)
-        {
             ping_phase_array[i] = dist(rng) * 2.f * PI;
-        }
 
         phase_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_Phase.comp");
         ping_phase_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_R32F, GL_RED, GL_FLOAT, GL_NEAREST, GL_NEAREST,
@@ -126,26 +124,25 @@ struct OceanFFT final : public Ogle::Application
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glDisable(GL_BLEND);
-        glClearColor(0.9f, 0.9f, 0.9f, 1.f);
+        glClearColor(0.674f, 0.966f, 0.988f, 1.f);
     }
 
     void Update() override
     {
-        // Note: You can remove imgui_demo.cpp from the project if you don't need this ImGui::ShowDemoWindow call, which you won't
-        // need eventually
         if (show_debug_gui)
         {
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-            bool ocean_size_changed = ImGui::SliderInt("Ocean Size", &ocean_size, 100, 1000);
-            
-            // Todo: Check this wind magnitude range for the ocean_size variable
-            bool wind_changed = ImGui::SliderFloat("Wind Magnitude", &wind_magnitude, 5.5f, 25.f)
-                || ImGui::SliderFloat("Wind Angle", &wind_angle, 0, 359);
+
+            // Note: Only these params affect the initial spectrum
+            bool wind_mag_changed = ImGui::SliderFloat("Wind Magnitude", &wind_magnitude, 10.f, 50.f);
+            bool wind_dir_changed = ImGui::SliderFloat("Wind Angle", &wind_angle, 0, 359);
         
             ImGui::SliderFloat("Choppiness", &choppiness, 0.f, 2.5f);
+            ImGui::SliderInt("Sun Elevation", &sun_elevation, 0, 89);
+            ImGui::SliderInt("Sun Azimuth", &sun_azimuth, 0, 359);
+            ImGui::Checkbox("Wireframe", &wireframe_mode);
         
-            changed = ocean_size_changed || wind_changed;
-            // ImGui::ShowDemoWindow(&show_debug_gui);
+            changed = wind_mag_changed || wind_dir_changed;
         }
         
         if (changed)
@@ -169,7 +166,6 @@ struct OceanFFT final : public Ogle::Application
         phase_program->SetFloat("u_delta_time", delta_time);
         phase_program->SetInt("u_resolution", RESOLUTION);
         
-        // Todo: Why do you need ping-ponging here, again?
         if (is_ping_phase)
         {
             ping_phase_texture->BindImage(0, GL_READ_ONLY, ping_phase_texture->internal_format);
@@ -197,8 +193,6 @@ struct OceanFFT final : public Ogle::Application
         
         glDispatchCompute(RESOLUTION / WORK_GROUP_DIM, RESOLUTION / WORK_GROUP_DIM, 1);
         glFinish();
-        
-        // Todo: Put this FFT code into a function
         
         // Rows
         fft_horizontal_program->Bind();
@@ -274,6 +268,13 @@ struct OceanFFT final : public Ogle::Application
         ocean_program->SetMat4("u_pv", glm::value_ptr(camera->GetProjViewMatrix((float)settings.width / settings.height)));
         ocean_program->SetVec3("u_world_camera_pos", camera->position.x, camera->position.y, camera->position.z);
         ocean_program->SetInt("u_ocean_size", ocean_size);
+        ocean_program->SetInt("u_wireframe", wireframe_mode ? 1 : 0);
+
+        // Calculat u_sun_direction based on the angles
+        float sun_elevation_rad = glm::radians((float)sun_elevation);
+        float sun_azimuth_rad = glm::radians((float)sun_azimuth);
+        ocean_program->SetVec3("u_sun_direction", -glm::cos(sun_elevation_rad) * glm::cos(sun_azimuth_rad), -glm::sin(sun_elevation_rad),
+            -glm::cos(sun_elevation_rad) * glm::sin(sun_azimuth_rad));
         
         ocean_program->SetInt("u_displacement_map", 0);
         temp_as_input ? temp_texture->Bind(0) : spectrum_texture->Bind(0); // Todo: Make it clear that here we are binding disp map
@@ -286,8 +287,10 @@ struct OceanFFT final : public Ogle::Application
         grid_vao->Bind();
         grid_ibo->Bind();
 
-        // Todo: You need to set something (macro/uniform) indicating if its rendering wireframe mode
-        // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        if (wireframe_mode)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        else
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
         glDrawElements(GL_TRIANGLES, GRID_DIM * GRID_DIM * 2 * 3, GL_UNSIGNED_INT, 0);
     }
@@ -359,11 +362,14 @@ private:
     bool show_debug_gui = false;
     bool changed = true;
 
-    int ocean_size = 1024;
+    const int ocean_size = 1024;
 
     float wind_magnitude = 14.142135f;
     float wind_angle = 45.f;
     float choppiness = 1.5f;
+    int sun_elevation = 0;
+    int sun_azimuth = 90;
+    bool wireframe_mode = false;
 
     // Todo: You don't need this struct, texture coordinates can be computed on the fly right?
     struct GridVertex
