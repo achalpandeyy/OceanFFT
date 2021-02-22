@@ -81,7 +81,7 @@ struct OceanFFT final : public Ogle::Application
         camera = std::make_unique<Ogle::Camera>(glm::vec3(0.f, 60.f, 0.f), 0.1f, 1000.f, 1000.f);
         
         // Initial spectrum
-        initial_spectrum_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_InitialSpectrum.comp");
+        initial_spectrum_program = std::make_unique<Ogle::Shader>("Shaders/CS_InitialSpectrum.comp");
         initial_spectrum_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_R32F, GL_RED, GL_FLOAT);
         
         // Phase
@@ -94,32 +94,31 @@ struct OceanFFT final : public Ogle::Application
         for (size_t i = 0; i < RESOLUTION * RESOLUTION; ++i)
             ping_phase_array[i] = dist(rng) * 2.f * PI;
 
-        phase_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_Phase.comp");
+        phase_program = std::make_unique<Ogle::Shader>("Shaders/CS_Phase.comp");
         ping_phase_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_R32F, GL_RED, GL_FLOAT, GL_NEAREST, GL_NEAREST,
             GL_CLAMP_TO_BORDER, GL_CLAMP_TO_BORDER, ping_phase_array.data());
         pong_phase_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_R32F, GL_RED, GL_FLOAT);
         
         // Time-varying spectrum
         
-        spectrum_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_Spectrum.comp");
+        spectrum_program = std::make_unique<Ogle::Shader>("Shaders/CS_Spectrum.comp");
         spectrum_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_LINEAR, GL_LINEAR,
             GL_REPEAT, GL_REPEAT);
         
         temp_texture = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_RGBA32F, GL_RGBA, GL_FLOAT);
         
-        fft_horizontal_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_FFTHorizontal.comp");
-        fft_vertical_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_FFTVertical.comp");
+        fft_horizontal_program = std::make_unique<Ogle::Shader>("Shaders/CS_FFTHorizontal.comp");
+        fft_vertical_program = std::make_unique<Ogle::Shader>("Shaders/CS_FFTVertical.comp");
 
         // Normal map
 
-        normal_map_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/CS_NormalMap.comp");
+        normal_map_program = std::make_unique<Ogle::Shader>("Shaders/CS_NormalMap.comp");
         normal_map = std::make_unique<Ogle::Texture2D>(RESOLUTION, RESOLUTION, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_LINEAR, GL_LINEAR,
             GL_REPEAT, GL_REPEAT);
         
         // Ocean shading
 
-        ocean_program = std::make_unique<Ogle::Shader>("C:/Projects/OceanFFT/Source/Shaders/VS_Ocean.vert",
-            "C:/Projects/OceanFFT/Source/Shaders/FS_Ocean.frag");
+        ocean_program = std::make_unique<Ogle::Shader>("Shaders/VS_Ocean.vert", "Shaders/FS_Ocean.frag");
 
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
@@ -270,7 +269,6 @@ struct OceanFFT final : public Ogle::Application
         ocean_program->SetInt("u_ocean_size", ocean_size);
         ocean_program->SetInt("u_wireframe", wireframe_mode ? 1 : 0);
 
-        // Calculat u_sun_direction based on the angles
         float sun_elevation_rad = glm::radians((float)sun_elevation);
         float sun_azimuth_rad = glm::radians((float)sun_azimuth);
         ocean_program->SetVec3("u_sun_direction", -glm::cos(sun_elevation_rad) * glm::cos(sun_azimuth_rad), -glm::sin(sun_elevation_rad),
